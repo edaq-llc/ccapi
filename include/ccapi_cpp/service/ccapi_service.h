@@ -253,6 +253,11 @@ class Service : public std::enable_shared_from_this<Service> {
     Element element;
     element.insert(CCAPI_HTTP_STATUS_CODE, statusCodeStr);
     element.insert(CCAPI_ERROR_MESSAGE, UtilString::trim(errorMessage));
+    element.insert(CCAPI_REQUEST_EXCHANGE, request.getExchange());
+    element.insert(CCAPI_INSTRUMENT, request.getInstrument());
+    for(auto& k: request.getFirstParamWithDefault()){
+      element.insert(k.first, k.second);
+    }
     message.setElementList({element});
     event.setMessageList({message});
     this->eventHandler(event, eventQueuePtr);
@@ -365,6 +370,9 @@ class Service : public std::enable_shared_from_this<Service> {
     }
     CCAPI_LOGGER_TRACE("connected");
     beast::ssl_stream<beast::tcp_stream>& stream = *httpConnectionPtr->streamPtr;
+    // #ifdef CCAPI_DISABLE_NAGLE_ALGORITHM
+    beast::get_lowest_layer(stream).socket().set_option(tcp::no_delay(true));
+    // #endif
     CCAPI_LOGGER_TRACE("before async_handshake");
     stream.async_handshake(ssl::stream_base::client,
                            beast::bind_front_handler(&Service::onHandshake, shared_from_this(), httpConnectionPtr, req, errorHandler, responseHandler));
@@ -471,6 +479,9 @@ class Service : public std::enable_shared_from_this<Service> {
     }
     CCAPI_LOGGER_TRACE("connected");
     beast::ssl_stream<beast::tcp_stream>& stream = *httpConnectionPtr->streamPtr;
+    // #ifdef CCAPI_DISABLE_NAGLE_ALGORITHM
+    beast::get_lowest_layer(stream).socket().set_option(tcp::no_delay(true));
+    // #endif
     CCAPI_LOGGER_TRACE("before async_handshake");
     stream.async_handshake(ssl::stream_base::client,
                            beast::bind_front_handler(&Service::onHandshake_2, shared_from_this(), httpConnectionPtr, request, req, retry, eventQueuePtr));

@@ -386,6 +386,9 @@ class ExecutionManagementServiceGemini : public ExecutionManagementService {
                   info.insert("is_cancelled", it->value.GetBool() ? "1" : "0");
                 }
               }
+
+              info.insert(CCAPI_EM_ORDER_STATUS, type);
+
               std::vector<Element> elementList;
               elementList.emplace_back(std::move(info));
               message.setElementList(elementList);
