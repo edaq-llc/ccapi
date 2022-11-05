@@ -249,13 +249,13 @@ class ExecutionManagementServiceCoinbase : public ExecutionManagementService {
     document.AddMember("type", rj::Value("subscribe").Move(), allocator);
     rj::Value channels(rj::kArrayType);
     std::string channelId;
-    auto fieldSet = subscription.getFieldSet();
+    const auto& fieldSet = subscription.getFieldSet();
     if (fieldSet.find(CCAPI_EM_ORDER_UPDATE) != fieldSet.end() || fieldSet.find(CCAPI_EM_PRIVATE_TRADE) != fieldSet.end()) {
       channelId = "full";
     }
     rj::Value channel(rj::kObjectType);
     rj::Value symbolIds(rj::kArrayType);
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     for (const auto& instrument : instrumentSet) {
       const std::string& symbolId = instrument;
       symbolIds.PushBack(rj::Value(symbolId.c_str(), allocator).Move(), allocator);
@@ -300,8 +300,8 @@ class ExecutionManagementServiceCoinbase : public ExecutionManagementService {
     std::string type = document["type"].GetString();
     if (this->websocketFullChannelTypeSet.find(type) != websocketFullChannelTypeSet.end()) {
       event.setType(Event::Type::SUBSCRIPTION_DATA);
-      auto fieldSet = subscription.getFieldSet();
-      auto instrumentSet = subscription.getInstrumentSet();
+      const auto& fieldSet = subscription.getFieldSet();
+      const auto& instrumentSet = subscription.getInstrumentSet();
       if (document.FindMember("user_id") != document.MemberEnd()) {
         std::string instrument = document["product_id"].GetString();
         if (instrumentSet.empty() || instrumentSet.find(instrument) != instrumentSet.end()) {
@@ -342,7 +342,29 @@ class ExecutionManagementServiceCoinbase : public ExecutionManagementService {
           }
           if (fieldSet.find(CCAPI_EM_ORDER_UPDATE) != fieldSet.end()) {
             message.setType(Message::Type::EXECUTION_MANAGEMENT_EVENTS_ORDER_UPDATE);
-            std::map<std::string, std::pair<std::string, JsonDataType> > extractionFieldNameMap = {
+            std::map<std::string, std::pair<std::string, JsonDataType>> extractionFieldNameMap;
+            if(type == "match" && (document.FindMember("taker_user_id") != document.MemberEnd())){
+              extractionFieldNameMap = {
+                {CCAPI_EM_ORDER_ID, std::make_pair("taker_order_id", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_SIDE, std::make_pair("side", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_LIMIT_PRICE, std::make_pair("price", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_STATUS, std::make_pair("type", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_INSTRUMENT, std::make_pair("product_id", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_CUMULATIVE_FILLED_QUANTITY, std::make_pair("size", JsonDataType::STRING)},
+              };
+            }
+            else if (type == "match" && (document.FindMember("maker_user_id") != document.MemberEnd())){
+              extractionFieldNameMap =  {
+                {CCAPI_EM_ORDER_ID, std::make_pair("maker_order_id", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_SIDE, std::make_pair("side", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_LIMIT_PRICE, std::make_pair("price", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_STATUS, std::make_pair("type", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_INSTRUMENT, std::make_pair("product_id", JsonDataType::STRING)},
+                {CCAPI_EM_ORDER_CUMULATIVE_FILLED_QUANTITY, std::make_pair("size", JsonDataType::STRING)},
+              };
+            }
+            else {
+              extractionFieldNameMap =  {
                 {CCAPI_EM_ORDER_ID, std::make_pair("order_id", JsonDataType::STRING)},
                 {CCAPI_EM_CLIENT_ORDER_ID, std::make_pair("client_oid", JsonDataType::STRING)},
                 {CCAPI_EM_ORDER_SIDE, std::make_pair("side", JsonDataType::STRING)},
@@ -350,7 +372,9 @@ class ExecutionManagementServiceCoinbase : public ExecutionManagementService {
                 {CCAPI_EM_ORDER_REMAINING_QUANTITY, std::make_pair("remaining_size", JsonDataType::STRING)},
                 {CCAPI_EM_ORDER_STATUS, std::make_pair("type", JsonDataType::STRING)},
                 {CCAPI_EM_ORDER_INSTRUMENT, std::make_pair("product_id", JsonDataType::STRING)},
-            };
+              };
+            } 
+            
             if (type == "change") {
               extractionFieldNameMap.insert({CCAPI_EM_ORDER_QUANTITY, std::make_pair("new_size", JsonDataType::STRING)});
             } else {

@@ -28,6 +28,12 @@ class MarketDataServiceBitstamp : public MarketDataService {
 
  private:
 #endif
+  void pingOnApplicationLevel(wspp::connection_hdl hdl, ErrorCode& ec) override {
+    this->send(hdl, R"({"event": "bts:heartbeat"})", wspp::frame::opcode::text, ec);
+  }
+  bool doesHttpBodyContainError(const Request& request, const std::string& body) override {
+    return body.find(R"("status": "error")") != std::string::npos || body.find(R"("status":"error")") != std::string::npos;
+  }
   std::vector<std::string> createSendStringList(const WsConnection& wsConnection) override {
     std::vector<std::string> sendStringList;
     for (const auto& subscriptionListByChannelIdSymbolId : this->subscriptionListByConnectionIdChannelIdSymbolIdMap.at(wsConnection.id)) {
@@ -181,12 +187,30 @@ class MarketDataServiceBitstamp : public MarketDataService {
     element.insert(CCAPI_INSTRUMENT, x["url_symbol"].GetString());
     std::string name = x["name"].GetString();
     auto splitted = UtilString::split(name, "/");
-    element.insert(CCAPI_BASE_ASSET, UtilString::toLower(splitted.at(0)));
-    element.insert(CCAPI_QUOTE_ASSET, UtilString::toLower(splitted.at(1)));
+    auto baseAsset = splitted.at(0);
+    auto quoteAsset = splitted.at(1);
+    element.insert(CCAPI_BASE_ASSET, baseAsset);
+    element.insert(CCAPI_QUOTE_ASSET, quoteAsset);
     int counterDecimals = std::stoi(x["counter_decimals"].GetString());
-    element.insert(CCAPI_ORDER_PRICE_INCREMENT, "0." + std::string(counterDecimals - 1, '0') + "1");
+    if (counterDecimals > 0) {
+      element.insert(CCAPI_ORDER_PRICE_INCREMENT, "0." + std::string(counterDecimals - 1, '0') + "1");
+    } else {
+      element.insert(CCAPI_ORDER_PRICE_INCREMENT, "1");
+    }
     int baseDecimals = std::stoi(x["base_decimals"].GetString());
-    element.insert(CCAPI_ORDER_QUANTITY_INCREMENT, "0." + std::string(baseDecimals - 1, '0') + "1");
+    if (baseDecimals > 0) {
+      element.insert(CCAPI_ORDER_QUANTITY_INCREMENT, "0." + std::string(baseDecimals - 1, '0') + "1");
+    } else {
+      element.insert(CCAPI_ORDER_QUANTITY_INCREMENT, "1");
+    }
+    auto splittedMinimumOrder = UtilString::split(x["minimum_order"].GetString(), ' ');
+    if (splittedMinimumOrder.size() == 2) {
+      if (splittedMinimumOrder.at(1) == quoteAsset) {
+        element.insert(CCAPI_ORDER_PRICE_TIMES_QUANTITY_MIN, splittedMinimumOrder.at(0));
+      } else if (splittedMinimumOrder.at(1) == baseAsset) {
+        element.insert(CCAPI_ORDER_QUANTITY_MIN, splittedMinimumOrder.at(0));
+      }
+    }
   }
   void convertTextMessageToMarketDataMessage(const Request& request, const std::string& textMessage, const TimePoint& timeReceived, Event& event,
                                              std::vector<MarketDataMessage>& marketDataMessageList) override {

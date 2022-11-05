@@ -99,6 +99,9 @@
 #ifdef CCAPI_ENABLE_EXCHANGE_KRAKEN_FUTURES
 #include "ccapi_cpp/service/ccapi_execution_management_service_kraken_futures.h"
 #endif
+#ifdef CCAPI_ENABLE_EXCHANGE_BITSTAMP
+#include "ccapi_cpp/service/ccapi_execution_management_service_bitstamp.h"
+#endif
 #ifdef CCAPI_ENABLE_EXCHANGE_BITFINEX
 #include "ccapi_cpp/service/ccapi_execution_management_service_bitfinex.h"
 #endif
@@ -200,6 +203,12 @@
 #include "ccapi_cpp/service/ccapi_service_context.h"
 using steady_timer = boost::asio::steady_timer;
 namespace ccapi {
+/**
+ * This class provides a consumer session for making requests and subscriptions for services. Sessions manage access to services either by requests and
+ * responses or subscriptions. A Session can dispatch events and replies in either an immediate or batching mode. The mode of a Session is determined when it is
+ * constructed and cannot be changed subsequently. A Session is immediate if an EventHandler object is supplied when it is constructed. All incoming events are
+ * delivered to the EventHandler supplied on construction. A Session is batching if an EventHandler object is not supplied when it is constructed.
+ */
 class Session {
  public:
   Session(const Session&) = delete;
@@ -228,7 +237,9 @@ class Session {
   }
   virtual ~Session() {
     CCAPI_LOGGER_FUNCTION_ENTER;
-    delete this->eventDispatcher;
+    if (this->useInternalEventDispatcher) {
+      delete this->eventDispatcher;
+    }
     CCAPI_LOGGER_FUNCTION_EXIT;
   }
   virtual void start() {
@@ -358,6 +369,10 @@ class Session {
 #ifdef CCAPI_ENABLE_EXCHANGE_KRAKEN_FUTURES
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_KRAKEN_FUTURES] =
         std::make_shared<ExecutionManagementServiceKrakenFutures>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
+#endif
+#ifdef CCAPI_ENABLE_EXCHANGE_BITSTAMP
+    this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_BITSTAMP] =
+        std::make_shared<ExecutionManagementServiceBitstamp>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
 #ifdef CCAPI_ENABLE_EXCHANGE_BITFINEX
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_BITFINEX] =
@@ -605,6 +620,18 @@ class Session {
     } else {
       if (this->eventHandler) {
         CCAPI_LOGGER_TRACE("handle event in immediate mode");
+#ifdef CCAPI_USE_SINGLE_THREAD
+        bool shouldContinue = true;
+        try {
+          shouldContinue = this->eventHandler->processEvent(event, this);
+        } catch (const std::runtime_error& e) {
+          CCAPI_LOGGER_ERROR(e.what());
+        }
+        if (!shouldContinue) {
+          CCAPI_LOGGER_DEBUG("about to pause the event dispatcher");
+          this->eventDispatcher->pause();
+        }
+#else
         this->eventDispatcher->dispatch([that = this, event = std::move(event)] {
           bool shouldContinue = true;
           try {
@@ -617,6 +644,7 @@ class Session {
             that->eventDispatcher->pause();
           }
         });
+#endif
       } else {
         CCAPI_LOGGER_TRACE("handle event in batching mode");
         this->eventQueue.pushBack(std::move(event));

@@ -6,6 +6,12 @@
 #include "ccapi_cpp/ccapi_element.h"
 #include "ccapi_cpp/ccapi_logger.h"
 namespace ccapi {
+/**
+ * A handle to a single message. Message objects are obtained from the getMessageList() function of the Event object. Each Message is associated with one or
+ * more correlation id values. The Message contents are represented as Elements and can be accessed via the getElementList() function. Each Message object
+ * consists of an Type attribute and a RecapType attribute. The exchange timestamp (if any) associated with the Messsage object can be retrieved via the
+ * getTime() function. The library timestamp can be retrieved via the getTimeReceived() function.
+ */
 class Message CCAPI_FINAL {
  public:
   enum class RecapType {
@@ -200,6 +206,7 @@ class Message CCAPI_FINAL {
   // 'getTime' only works in C++. For other languages, please use 'getTimeISO'.
   TimePoint getTime() const { return time; }
   std::string getTimeISO() const { return UtilTime::getISOTimestamp(time); }
+  std::pair<long long, long long> getTimeUnix() const { return UtilTime::divide(time); }
   std::pair<long long, long long> getTimePair() const { return UtilTime::divide(time); }
   void setTime(TimePoint time) { this->time = time; }
   RecapType getRecapType() const { return recapType; }
@@ -209,6 +216,7 @@ class Message CCAPI_FINAL {
   // 'getTimeReceived' only works in C++. For other languages, please use 'getTimeReceivedISO'.
   TimePoint getTimeReceived() const { return timeReceived; }
   std::string getTimeReceivedISO() const { return UtilTime::getISOTimestamp(timeReceived); }
+  std::pair<long long, long long> getTimeReceivedUnix() const { return UtilTime::divide(timeReceived); }
   std::pair<long long, long long> getTimeReceivedPair() const { return UtilTime::divide(timeReceived); }
   void setTimeReceived(TimePoint timeReceived) { this->timeReceived = timeReceived; }
 #ifndef CCAPI_EXPOSE_INTERNAL

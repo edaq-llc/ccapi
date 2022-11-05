@@ -7,18 +7,23 @@
 #include "websocketpp/config/boost_config.hpp"
 namespace wspp = websocketpp;
 namespace ccapi {
-
+/**
+ * Defines the service that the service depends on.
+ */
 class ServiceContext CCAPI_FINAL {
  public:
   typedef wspp::lib::asio::io_service IoContext;
   typedef wspp::lib::shared_ptr<wspp::lib::asio::io_service> IoContextPtr;
   struct CustomClientConfig : public wspp::config::asio_tls_client {
-#ifdef WEBSOCKETPP_ENABLE_SINGLE_THREADING
+#ifdef CCAPI_USE_SINGLE_THREAD
     typedef wspp::config::asio_tls_client base;
     static bool const enable_multithreading = false;
     struct transport_config : public base::transport_config {
       static bool const enable_multithreading = false;
     };
+#endif
+#ifdef CCAPI_WEBSOCKET_READ_BUFFER_SIZE
+static const size_t connection_read_buffer_size = CCAPI_WEBSOCKET_READ_BUFFER_SIZE;
 #endif
     static const wspp::log::level alog_level = wspp::log::alevel::none;
     static const wspp::log::level elog_level = wspp::log::elevel::none;
@@ -52,12 +57,13 @@ class ServiceContext CCAPI_FINAL {
     CCAPI_LOGGER_INFO("just exited client asio io_service run loop");
   }
   void stop() {
+    this->ioContextPtr->stop();
     this->tlsClientPtr->stop();
     this->tlsClientPtr->stop_perpetual();
   }
   IoContextPtr ioContextPtr{new IoContext()};
   TlsClientPtr tlsClientPtr{new TlsClient()};
-  SslContextPtr sslContextPtr{new SslContext(SslContext::sslv23)};
+  SslContextPtr sslContextPtr{new SslContext(SslContext::tls_client)};
 };
 
 } /* namespace ccapi */

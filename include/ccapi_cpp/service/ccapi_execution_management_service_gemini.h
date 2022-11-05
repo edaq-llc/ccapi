@@ -267,8 +267,8 @@ class ExecutionManagementServiceGemini : public ExecutionManagementService {
   void prepareConnect(WsConnection& wsConnection) override {
     auto now = UtilTime::now();
     auto subscription = wsConnection.subscriptionList.at(0);
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     auto credential = wsConnection.subscriptionList.at(0).getCredential();
     if (credential.empty()) {
       credential = this->credentialDefault;
@@ -319,8 +319,8 @@ class ExecutionManagementServiceGemini : public ExecutionManagementService {
       }
     } else if (document.IsArray()) {
       event.setType(Event::Type::SUBSCRIPTION_DATA);
-      auto fieldSet = subscription.getFieldSet();
-      auto instrumentSet = subscription.getInstrumentSet();
+      const auto& fieldSet = subscription.getFieldSet();
+      const auto& instrumentSet = subscription.getInstrumentSet();
       for (const auto& x : document.GetArray()) {
         Message message;
         message.setTimeReceived(timeReceived);
@@ -386,6 +386,9 @@ class ExecutionManagementServiceGemini : public ExecutionManagementService {
                   info.insert("is_cancelled", it->value.GetBool() ? "1" : "0");
                 }
               }
+
+              info.insert(CCAPI_EM_ORDER_STATUS, type);
+
               std::vector<Element> elementList;
               elementList.emplace_back(std::move(info));
               message.setElementList(elementList);

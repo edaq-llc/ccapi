@@ -66,6 +66,9 @@ class ExecutionManagementServiceFtxBase : public ExecutionManagementService {
       if (key == "side") {
         value = (value == CCAPI_EM_ORDER_SIDE_BUY || value == "buy") ? "buy" : "sell";
       }
+      if (key == "type" && value == "market") {
+        document.AddMember("price", rj::Value(rj::Type::kNullType), allocator);
+      }
       if (value != "null") {
         if (value == "true" || value == "false") {
           document.AddMember(rj::Value(key.c_str(), allocator).Move(), value == "true", allocator);
@@ -288,7 +291,7 @@ class ExecutionManagementServiceFtxBase : public ExecutionManagementService {
     document.Accept(writer);
     std::string sendString = stringBuffer.GetString();
     sendStringList.push_back(sendString);
-    auto fieldSet = subscription.getFieldSet();
+    const auto& fieldSet = subscription.getFieldSet();
     for (const auto& field : subscription.getFieldSet()) {
       std::string channelId;
       if (field == CCAPI_EM_ORDER_UPDATE) {
@@ -322,8 +325,8 @@ class ExecutionManagementServiceFtxBase : public ExecutionManagementService {
     Message message;
     message.setTimeReceived(timeReceived);
     message.setCorrelationIdList({subscription.getCorrelationId()});
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     std::string type = document["type"].GetString();
     if (type == "update") {
       std::string channel = std::string(document["channel"].GetString());
@@ -344,10 +347,17 @@ class ExecutionManagementServiceFtxBase : public ExecutionManagementService {
           element.insert(CCAPI_EM_ORDER_ID, std::string(data["orderId"].GetString()));
           element.insert(CCAPI_EM_ORDER_INSTRUMENT, instrument);
           element.insert(CCAPI_EM_ORDER_FEE_QUANTITY, std::string(data["fee"].GetString()));
+          {
+            auto it = data.FindMember("clientOrderId");
+            if (it != data.MemberEnd() && !it->value.IsNull()) {
+              element.insert(CCAPI_EM_CLIENT_ORDER_ID, std::string(it->value.GetString()));
+            }
+          }
           elementList.emplace_back(std::move(element));
           message.setElementList(elementList);
           messageList.emplace_back(std::move(message));
         } else if (channel == "orders" && fieldSet.find(CCAPI_EM_ORDER_UPDATE) != fieldSet.end()) {
+          message.setTime(timeReceived);
           message.setType(Message::Type::EXECUTION_MANAGEMENT_EVENTS_ORDER_UPDATE);
           const std::map<std::string, std::pair<std::string, JsonDataType> >& extractionFieldNameMap = {
               {CCAPI_EM_ORDER_ID, std::make_pair("id", JsonDataType::STRING)},
