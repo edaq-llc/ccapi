@@ -172,8 +172,8 @@ int main(int argc, char** argv) {
   sessionOptions.httpMaxNumRetry = 0;
   sessionOptions.httpMaxNumRedirect = 0;
   SessionConfigs sessionConfigs;
-  eventHandler.onInit();
   Session session(sessionOptions, sessionConfigs, &eventHandler);
+  eventHandler.onInit(&session);
 #else
   Session session;
 #endif
@@ -210,16 +210,16 @@ int main(int argc, char** argv) {
         {exchangeUpper + "_API_SECRET", UtilSystem::getEnvAsString(exchangeUpper + "_API_SECRET")},
     };
   }
-  std::set<std::string> useCancelOrderToCancelOpenOrdersExchangeSet{"gemini", "kraken", "bitfinex", "okex"};
+  std::set<std::string> useCancelOrderToCancelOpenOrdersExchangeSet{"gemini", "kraken", "bitfinex", "okx"};
   if (useCancelOrderToCancelOpenOrdersExchangeSet.find(eventHandler.exchange) != useCancelOrderToCancelOpenOrdersExchangeSet.end()) {
     eventHandler.useCancelOrderToCancelOpenOrders = true;
   }
-  std::set<std::string> useWebsocketToExecuteOrderExchangeSet{"bitfinex", "okex"};
+  std::set<std::string> useWebsocketToExecuteOrderExchangeSet{"bitfinex", "okx"};
   if (useWebsocketToExecuteOrderExchangeSet.find(eventHandler.exchange) != useWebsocketToExecuteOrderExchangeSet.end()) {
     eventHandler.useWebsocketToExecuteOrder = true;
   }
   Request request(Request::Operation::GET_INSTRUMENT, eventHandler.exchange, eventHandler.instrumentRest, "GET_INSTRUMENT");
-  if (exchange == "okex") {
+  if (exchange == "okx") {
     request.appendParam({
         {"instType", "SPOT"},
     });

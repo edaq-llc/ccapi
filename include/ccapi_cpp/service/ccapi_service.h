@@ -33,8 +33,8 @@
 #include "websocketpp/common/connection_hdl.hpp"
 #include "websocketpp/config/asio_client.hpp"
 // clang-format on
-#if defined(CCAPI_ENABLE_SERVICE_MARKET_DATA) && (defined(CCAPI_ENABLE_EXCHANGE_HUOBI) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || \
-                                                  defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_OKEX)) || \
+#if defined(CCAPI_ENABLE_SERVICE_MARKET_DATA) &&                                                                                                      \
+        (defined(CCAPI_ENABLE_EXCHANGE_HUOBI) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP)) || \
     defined(CCAPI_ENABLE_SERVICE_EXECUTION_MANAGEMENT) && (defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP))
 #include <iomanip>
 #include <sstream>
@@ -60,6 +60,10 @@ using tcp = boost::asio::ip::tcp;
 namespace wspp = websocketpp;
 namespace rj = rapidjson;
 namespace ccapi {
+/**
+ * Defines a service which provides access to exchange API and normalizes them. This is a base class that implements generic functionalities for dealing with
+ * exchange REST and Websocket APIs. The Session object is responsible for routing requests and subscriptions to the desired concrete service.
+ */
 class Service : public std::enable_shared_from_this<Service> {
  public:
   typedef wspp::lib::shared_ptr<ServiceContext> ServiceContextPtr;
@@ -361,6 +365,9 @@ class Service : public std::enable_shared_from_this<Service> {
     }
     CCAPI_LOGGER_TRACE("connected");
     beast::ssl_stream<beast::tcp_stream>& stream = *httpConnectionPtr->streamPtr;
+    // #ifdef CCAPI_DISABLE_NAGLE_ALGORITHM
+    beast::get_lowest_layer(stream).socket().set_option(tcp::no_delay(true));
+    // #endif
     CCAPI_LOGGER_TRACE("before async_handshake");
     stream.async_handshake(ssl::stream_base::client,
                            beast::bind_front_handler(&Service::onHandshake, shared_from_this(), httpConnectionPtr, req, errorHandler, responseHandler));
@@ -467,6 +474,9 @@ class Service : public std::enable_shared_from_this<Service> {
     }
     CCAPI_LOGGER_TRACE("connected");
     beast::ssl_stream<beast::tcp_stream>& stream = *httpConnectionPtr->streamPtr;
+    // #ifdef CCAPI_DISABLE_NAGLE_ALGORITHM
+    beast::get_lowest_layer(stream).socket().set_option(tcp::no_delay(true));
+    // #endif
     CCAPI_LOGGER_TRACE("before async_handshake");
     stream.async_handshake(ssl::stream_base::client,
                            beast::bind_front_handler(&Service::onHandshake_2, shared_from_this(), httpConnectionPtr, request, req, retry, eventQueuePtr));
@@ -541,6 +551,7 @@ class Service : public std::enable_shared_from_this<Service> {
     if (ec) {
       CCAPI_LOGGER_TRACE("fail");
       this->onError(Event::Type::REQUEST_STATUS, Message::Type::REQUEST_FAILURE, ec, "read", {request.getCorrelationId()}, eventQueuePtr);
+      this->httpConnectionPool.purge();
       auto now = UtilTime::now();
       auto req = this->convertRequest(request, now);
       retry.numRetry += 1;
@@ -647,7 +658,7 @@ class Service : public std::enable_shared_from_this<Service> {
             return;
           }
           std::shared_ptr<HttpConnection> httpConnectionPtr(new HttpConnection(this->hostRest, this->portRest, streamPtr));
-          CCAPI_LOGGER_TRACE("about to perform request with new httpConnectionPtr " + toString(*httpConnectionPtr));
+          CCAPI_LOGGER_WARN("about to perform request with new httpConnectionPtr " + toString(*httpConnectionPtr));
           this->performRequest(httpConnectionPtr, request, req, retry, eventQueuePtr);
         } else {
           std::shared_ptr<HttpConnection> httpConnectionPtr(nullptr);
@@ -668,7 +679,7 @@ class Service : public std::enable_shared_from_this<Service> {
               return;
             }
             httpConnectionPtr = std::make_shared<HttpConnection>(this->hostRest, this->portRest, streamPtr);
-            CCAPI_LOGGER_TRACE("about to perform request with new httpConnectionPtr " + toString(*httpConnectionPtr));
+            CCAPI_LOGGER_WARN("about to perform request with new httpConnectionPtr " + toString(*httpConnectionPtr));
             this->performRequest(httpConnectionPtr, request, req, retry, eventQueuePtr);
           }
         }
@@ -700,6 +711,8 @@ class Service : public std::enable_shared_from_this<Service> {
     req.version(11);
     if (this->sessionOptions.enableOneHttpConnectionPerRequest) {
       req.keep_alive(false);
+    } else {
+      req.keep_alive(true);
     }
     req.set(http::field::host, this->hostRest);
     req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
@@ -951,8 +964,8 @@ class Service : public std::enable_shared_from_this<Service> {
         this->onError(Event::Type::SUBSCRIPTION_STATUS, Message::Type::GENERIC_ERROR, e);
       }
     } else if (opcode == websocketpp::frame::opcode::binary) {
-#if defined(CCAPI_ENABLE_SERVICE_MARKET_DATA) && (defined(CCAPI_ENABLE_EXCHANGE_HUOBI) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || \
-                                                  defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_OKEX)) || \
+#if defined(CCAPI_ENABLE_SERVICE_MARKET_DATA) &&                                                                                                      \
+        (defined(CCAPI_ENABLE_EXCHANGE_HUOBI) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP)) || \
     defined(CCAPI_ENABLE_SERVICE_EXECUTION_MANAGEMENT) && (defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP))
       if (this->needDecompressWebsocketMessage) {
         std::string decompressed;
@@ -1119,8 +1132,8 @@ class Service : public std::enable_shared_from_this<Service> {
   // std::regex convertNumberToStringInJsonRegex{"(\\[|,|\":)\\s?(-?\\d+\\.?\\d*)"};
   // std::string convertNumberToStringInJsonRewrite{"$1\"$2\""};
   bool needDecompressWebsocketMessage{};
-#if defined(CCAPI_ENABLE_SERVICE_MARKET_DATA) && (defined(CCAPI_ENABLE_EXCHANGE_HUOBI) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || \
-                                                  defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_OKEX)) || \
+#if defined(CCAPI_ENABLE_SERVICE_MARKET_DATA) &&                                                                                                      \
+        (defined(CCAPI_ENABLE_EXCHANGE_HUOBI) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP)) || \
     defined(CCAPI_ENABLE_SERVICE_EXECUTION_MANAGEMENT) && (defined(CCAPI_ENABLE_EXCHANGE_HUOBI_USDT_SWAP) || defined(CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP))
   struct monostate {};
   websocketpp::extensions_workaround::permessage_deflate::enabled<monostate> inflater;

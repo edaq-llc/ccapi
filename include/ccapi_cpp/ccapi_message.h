@@ -6,6 +6,12 @@
 #include "ccapi_cpp/ccapi_element.h"
 #include "ccapi_cpp/ccapi_logger.h"
 namespace ccapi {
+/**
+ * A handle to a single message. Message objects are obtained from the getMessageList() function of the Event object. Each Message is associated with one or
+ * more correlation id values. The Message contents are represented as Elements and can be accessed via the getElementList() function. Each Message object
+ * consists of an Type attribute and a RecapType attribute. The exchange timestamp (if any) associated with the Messsage object can be retrieved via the
+ * getTime() function. The library timestamp can be retrieved via the getTimeReceived() function.
+ */
 class Message CCAPI_FINAL {
  public:
   enum class RecapType {
@@ -179,7 +185,8 @@ class Message CCAPI_FINAL {
   std::string toString() const {
     std::string output = "Message [type = " + typeToString(type) + ", recapType = " + recapTypeToString(recapType) +
                          ", time = " + UtilTime::getISOTimestamp(time) + ", timeReceived = " + UtilTime::getISOTimestamp(timeReceived) +
-                         ", elementList = " + ccapi::firstNToString(elementList, 10) + ", correlationIdList = " + ccapi::toString(correlationIdList) + "]";
+                         ", elementList = " + ccapi::firstNToString(elementList, 10) + ", correlationIdList = " + ccapi::toString(correlationIdList) +
+                         ", secondaryCorrelationIdMap = " + ccapi::toString(secondaryCorrelationIdMap) + "]";
     return output;
   }
   std::string toStringPretty(const int space = 2, const int leftToIndent = 0, const bool indentFirstLine = true) const {
@@ -189,17 +196,23 @@ class Message CCAPI_FINAL {
                          "recapType = " + recapTypeToString(recapType) + ",\n" + ss + "time = " + UtilTime::getISOTimestamp(time) + ",\n" + ss +
                          "timeReceived = " + UtilTime::getISOTimestamp(timeReceived) + ",\n" + ss +
                          "elementList = " + ccapi::firstNToStringPretty(elementList, 10, space, space + leftToIndent, false) + ",\n" + ss +
-                         "correlationIdList = " + ccapi::toString(correlationIdList) + "\n" + sl + "]";
+                         "correlationIdList = " + ccapi::toString(correlationIdList) + ",\n" + ss +
+                         "secondaryCorrelationIdMap = " + ccapi::toString(secondaryCorrelationIdMap) + "\n" + sl + "]";
     return output;
   }
   const std::vector<Element>& getElementList() const { return elementList; }
   void setElementList(const std::vector<Element>& elementList) { this->elementList = elementList; }
   void setElementList(std::vector<Element>& elementList) { this->elementList = std::move(elementList); }
   const std::vector<std::string>& getCorrelationIdList() const { return correlationIdList; }
+  const std::map<std::string, std::string>& getSecondaryCorrelationIdMap() const { return secondaryCorrelationIdMap; }
   void setCorrelationIdList(const std::vector<std::string>& correlationIdList) { this->correlationIdList = correlationIdList; }
+  void setSecondaryCorrelationIdMap(const std::map<std::string, std::string>& secondaryCorrelationIdMap) {
+    this->secondaryCorrelationIdMap = secondaryCorrelationIdMap;
+  }
   // 'getTime' only works in C++. For other languages, please use 'getTimeISO'.
   TimePoint getTime() const { return time; }
   std::string getTimeISO() const { return UtilTime::getISOTimestamp(time); }
+  std::pair<long long, long long> getTimeUnix() const { return UtilTime::divide(time); }
   std::pair<long long, long long> getTimePair() const { return UtilTime::divide(time); }
   void setTime(TimePoint time) { this->time = time; }
   RecapType getRecapType() const { return recapType; }
@@ -209,6 +222,7 @@ class Message CCAPI_FINAL {
   // 'getTimeReceived' only works in C++. For other languages, please use 'getTimeReceivedISO'.
   TimePoint getTimeReceived() const { return timeReceived; }
   std::string getTimeReceivedISO() const { return UtilTime::getISOTimestamp(timeReceived); }
+  std::pair<long long, long long> getTimeReceivedUnix() const { return UtilTime::divide(timeReceived); }
   std::pair<long long, long long> getTimeReceivedPair() const { return UtilTime::divide(timeReceived); }
   void setTimeReceived(TimePoint timeReceived) { this->timeReceived = timeReceived; }
 #ifndef CCAPI_EXPOSE_INTERNAL
@@ -219,6 +233,7 @@ class Message CCAPI_FINAL {
   TimePoint timeReceived{std::chrono::seconds{0}};
   std::vector<Element> elementList;
   std::vector<std::string> correlationIdList;
+  std::map<std::string, std::string> secondaryCorrelationIdMap;
   Type type{Type::UNKNOWN};
   RecapType recapType{RecapType::UNKNOWN};
 };

@@ -82,7 +82,7 @@ class ExecutionManagementServiceGateioPerpetualFutures : public ExecutionManagem
                               [that = shared_from_base<ExecutionManagementServiceGateioPerpetualFutures>(), subscription]() mutable {
                                 auto now = UtilTime::now();
                                 subscription.setTimeSent(now);
-                                auto instrumentSet = subscription.getInstrumentSet();
+                                const auto& instrumentSet = subscription.getInstrumentSet();
                                 auto it = instrumentSet.begin();
                                 if (it != instrumentSet.end()) {
                                   std::string settle;
@@ -92,7 +92,11 @@ class ExecutionManagementServiceGateioPerpetualFutures : public ExecutionManagem
                                   } else if (UtilString::endsWith(symbolId, "_USDT")) {
                                     settle = "usdt";
                                   }
-                                  WsConnection wsConnection(that->baseUrl + settle, "", {subscription});
+                                  auto credential = subscription.getCredential();
+                                  if (credential.empty()) {
+                                    credential = that->credentialDefault;
+                                  }
+                                  WsConnection wsConnection(that->baseUrl + settle, "", {subscription}, credential);
                                   that->prepareConnect(wsConnection);
                                 }
                               });

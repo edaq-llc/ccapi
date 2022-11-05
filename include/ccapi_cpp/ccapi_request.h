@@ -8,6 +8,12 @@
 #include "ccapi_cpp/ccapi_macro.h"
 #include "ccapi_cpp/ccapi_util_private.h"
 namespace ccapi {
+/**
+ * A single request. Request objects are created using Request constructors. They are used with Session::sendRequest() or Session::sendRequestByWebsocket() or
+ * Session::sendRequestByFix(). The Request object contains the parameters for a single request. Once a Request has been created its fields can be further
+ * modified using the convenience functions appendParam() or appendParamFix() or setParamList() or setParamListFix(). A correlation id can be used as the unique
+ * identifier to tag all data associated with this request.
+ */
 class Request CCAPI_FINAL {
  public:
   static constexpr int operationTypeCustom = 0x100;
@@ -118,18 +124,23 @@ class Request CCAPI_FINAL {
     }
     std::string output =
         "Request [exchange = " + exchange + ", instrument = " + instrument + ", serviceName = " + serviceName + ", correlationId = " + correlationId +
+        ", secondaryCorrelationId = " + secondaryCorrelationId +
         (this->serviceName == CCAPI_FIX ? ", paramListFix = " + ccapi::toString(paramListFix) : ", paramList = " + ccapi::toString(paramList)) +
         ", credential = " + ccapi::toString(shortCredential) + ", operation = " + operationToString(operation) +
         ", timeSent = " + UtilTime::getISOTimestamp(timeSent) + "]";
     return output;
   }
   const std::string& getCorrelationId() const { return correlationId; }
+  const std::string& getSecondaryCorrelationId() const { return secondaryCorrelationId; }
   const std::string& getExchange() const { return exchange; }
   const std::string& getInstrument() const { return instrument; }
   const std::map<std::string, std::string>& getCredential() const { return credential; }
   const std::string& getServiceName() const { return serviceName; }
   void appendParam(const std::map<std::string, std::string>& param) { this->paramList.push_back(param); }
   void appendParamFix(const std::vector<std::pair<int, std::string> >& param) { this->paramListFix.push_back(param); }
+  void appendParamListFix(const std::vector<std::vector<std::pair<int, std::string> > >& paramList) {
+    this->paramListFix.insert(std::end(this->paramListFix), std::begin(paramList), std::end(paramList));
+  }
   void setParamListFix(const std::vector<std::vector<std::pair<int, std::string> > >& paramListFix) { this->paramListFix = paramListFix; }
   Operation getOperation() const { return operation; }
   const std::vector<std::map<std::string, std::string> >& getParamList() const { return paramList; }
@@ -151,6 +162,7 @@ class Request CCAPI_FINAL {
   void setIndex(int index) { this->index = index; }
   void setCredential(const std::map<std::string, std::string>& credential) { this->credential = credential; }
   void setCorrelationId(const std::string& correlationId) { this->correlationId = correlationId; }
+  void setSecondaryCorrelationId(const std::string& secondaryCorrelationId) { this->secondaryCorrelationId = secondaryCorrelationId; }
 #ifndef CCAPI_EXPOSE_INTERNAL
 
  private:
@@ -159,6 +171,7 @@ class Request CCAPI_FINAL {
   std::string instrument;
   std::string serviceName;
   std::string correlationId;
+  std::string secondaryCorrelationId;
   std::vector<std::map<std::string, std::string> > paramList;
   std::map<std::string, std::string> credential;
   Operation operation;

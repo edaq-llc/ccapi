@@ -301,9 +301,11 @@ class ExecutionManagementServiceBitmex : public ExecutionManagementService {
     sendStringList.push_back(sendString);
     return sendStringList;
   }
-  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                      const TimePoint& timeReceived) override {
     if (textMessage != "pong") {
+      rj::Document document;
+      document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
       Event event = this->createEvent(wsConnection.hdl, subscription, textMessage, document, timeReceived);
       if (!event.getMessageList().empty()) {
         this->eventHandler(event, nullptr);
@@ -317,8 +319,8 @@ class ExecutionManagementServiceBitmex : public ExecutionManagementService {
     Message message;
     message.setTimeReceived(timeReceived);
     message.setCorrelationIdList({subscription.getCorrelationId()});
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     if (document.FindMember("error") != document.MemberEnd()) {
       auto it = document.FindMember("request");
       if (it != document.MemberEnd()) {

@@ -265,8 +265,10 @@ class ExecutionManagementServiceKrakenFutures : public ExecutionManagementServic
     sendStringList.push_back(sendString);
     return sendStringList;
   }
-  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                      const TimePoint& timeReceived) override {
+    rj::Document document;
+    document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
     Event event = this->createEvent(wsConnection.hdl, subscription, textMessage, document, timeReceived);
     if (!event.getMessageList().empty()) {
       this->eventHandler(event, nullptr);
@@ -285,9 +287,9 @@ class ExecutionManagementServiceKrakenFutures : public ExecutionManagementServic
         } else if (feed == "open_orders") {
           field = CCAPI_EM_ORDER_UPDATE;
         }
-        auto fieldSet = subscription.getFieldSet();
+        const auto& fieldSet = subscription.getFieldSet();
         if (fieldSet.find(field) != fieldSet.end()) {
-          auto instrumentSet = subscription.getInstrumentSet();
+          const auto& instrumentSet = subscription.getInstrumentSet();
           if (field == CCAPI_EM_PRIVATE_TRADE) {
             for (const auto& x : document["fills"].GetArray()) {
               std::string instrument = x["instrument"].GetString();

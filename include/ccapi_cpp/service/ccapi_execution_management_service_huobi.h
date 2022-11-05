@@ -252,11 +252,13 @@ class ExecutionManagementServiceHuobi : public ExecutionManagementServiceHuobiBa
     sendStringList.push_back(sendString);
     return sendStringList;
   }
-  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                      const TimePoint& timeReceived) override {
+    rj::Document document;
+    document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
     std::string actionStr = document["action"].GetString();
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     if (actionStr == "req") {
       std::string chStr = document["ch"].GetString();
       if (chStr == "auth") {
@@ -322,8 +324,8 @@ class ExecutionManagementServiceHuobi : public ExecutionManagementServiceHuobiBa
     Message message;
     message.setTimeReceived(timeReceived);
     message.setCorrelationIdList({subscription.getCorrelationId()});
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     if (actionStr == "push") {
       event.setType(Event::Type::SUBSCRIPTION_DATA);
       Message message;

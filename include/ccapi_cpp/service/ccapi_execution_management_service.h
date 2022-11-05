@@ -15,6 +15,10 @@
 #include "ccapi_cpp/ccapi_macro.h"
 #include "ccapi_cpp/service/ccapi_service.h"
 namespace ccapi {
+/**
+ * The ExecutionManagementService class inherits from the Service class and provides implemenations more specific to execution management such as order
+ * submission, order cancellation, etc..
+ */
 class ExecutionManagementService : public Service {
  public:
   enum class JsonDataType {
@@ -48,7 +52,11 @@ class ExecutionManagementService : public Service {
                               [that = shared_from_base<ExecutionManagementService>(), subscription]() mutable {
                                 auto now = UtilTime::now();
                                 subscription.setTimeSent(now);
-                                WsConnection wsConnection(that->baseUrl, "", {subscription});
+                                auto credential = subscription.getCredential();
+                                if (credential.empty()) {
+                                  credential = that->credentialDefault;
+                                }
+                                WsConnection wsConnection(that->baseUrl, "", {subscription}, credential);
                                 that->prepareConnect(wsConnection);
                               });
       }
@@ -175,9 +183,7 @@ class ExecutionManagementService : public Service {
   void onTextMessage(wspp::connection_hdl hdl, const std::string& textMessage, const TimePoint& timeReceived) override {
     WsConnection& wsConnection = this->getWsConnectionFromConnectionPtr(this->serviceContextPtr->tlsClientPtr->get_con_from_hdl(hdl));
     auto subscription = wsConnection.subscriptionList.at(0);
-    rj::Document document;
-    document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
-    this->onTextMessage(wsConnection, subscription, textMessage, document, timeReceived);
+    this->onTextMessage(wsConnection, subscription, textMessage, timeReceived);
     this->onPongByMethod(PingPongMethod::WEBSOCKET_APPLICATION_LEVEL, hdl, textMessage, timeReceived);
   }
   void onOpen(wspp::connection_hdl hdl) override {
@@ -188,10 +194,7 @@ class ExecutionManagementService : public Service {
     auto correlationId = wsConnection.subscriptionList.at(0).getCorrelationId();
     this->wsConnectionByCorrelationIdMap.insert({correlationId, wsConnection});
     this->correlationIdByConnectionIdMap.insert({wsConnection.id, correlationId});
-    auto credential = wsConnection.subscriptionList.at(0).getCredential();
-    if (credential.empty()) {
-      credential = this->credentialDefault;
-    }
+    auto credential = wsConnection.credential;
     this->logonToExchange(wsConnection, now, credential);
   }
   void onClose(wspp::connection_hdl hdl) override {
@@ -287,7 +290,7 @@ class ExecutionManagementService : public Service {
     int64_t nonce = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count() + requestIndex;
     return nonce;
   }
-  virtual void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  virtual void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                              const TimePoint& timeReceived) {}
   virtual void convertRequestForRest(http::request<http::string_body>& req, const Request& request, const std::string& wsRequestId, const TimePoint& now,
                                      const std::string& symbolId, const std::map<std::string, std::string>& credential) {}

@@ -6,6 +6,10 @@
 #include "ccapi_cpp/ccapi_macro.h"
 #include "ccapi_cpp/ccapi_util_private.h"
 namespace ccapi {
+/**
+ * A single subscription. A 'Subscription' is used when calling 'Session::subscribe()' or 'Session::subscribeByFix'. Subscription objects are created using
+ * Subscription constructors. A correlation id can be used as the unique identifier to tag all data associated with this subscription.
+ */
 class Subscription CCAPI_FINAL {
  public:
   Subscription() {}
@@ -89,6 +93,7 @@ class Subscription CCAPI_FINAL {
     }
     return output;
   }
+  const std::string getSerializedCredential() const { return ::ccapi::toString(this->credential); }
   // 'getTimeSent' only works in C++. For other languages, please use 'getTimeSentISO'.
   TimePoint getTimeSent() const { return timeSent; }
   std::string getTimeSentISO() const { return UtilTime::getISOTimestamp(timeSent); }

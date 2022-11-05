@@ -46,8 +46,8 @@
 #ifdef CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP
 #include "ccapi_cpp/service/ccapi_market_data_service_huobi_coin_swap.h"
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_OKEX
-#include "ccapi_cpp/service/ccapi_market_data_service_okex.h"
+#ifdef CCAPI_ENABLE_EXCHANGE_OKX
+#include "ccapi_cpp/service/ccapi_market_data_service_okx.h"
 #endif
 #ifdef CCAPI_ENABLE_EXCHANGE_ERISX
 #include "ccapi_cpp/service/ccapi_market_data_service_erisx.h"
@@ -99,6 +99,9 @@
 #ifdef CCAPI_ENABLE_EXCHANGE_KRAKEN_FUTURES
 #include "ccapi_cpp/service/ccapi_execution_management_service_kraken_futures.h"
 #endif
+#ifdef CCAPI_ENABLE_EXCHANGE_BITSTAMP
+#include "ccapi_cpp/service/ccapi_execution_management_service_bitstamp.h"
+#endif
 #ifdef CCAPI_ENABLE_EXCHANGE_BITFINEX
 #include "ccapi_cpp/service/ccapi_execution_management_service_bitfinex.h"
 #endif
@@ -126,8 +129,8 @@
 #ifdef CCAPI_ENABLE_EXCHANGE_HUOBI_COIN_SWAP
 #include "ccapi_cpp/service/ccapi_execution_management_service_huobi_coin_swap.h"
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_OKEX
-#include "ccapi_cpp/service/ccapi_execution_management_service_okex.h"
+#ifdef CCAPI_ENABLE_EXCHANGE_OKX
+#include "ccapi_cpp/service/ccapi_execution_management_service_okx.h"
 #endif
 #ifdef CCAPI_ENABLE_EXCHANGE_ERISX
 #include "ccapi_cpp/service/ccapi_execution_management_service_erisx.h"
@@ -200,6 +203,12 @@
 #include "ccapi_cpp/service/ccapi_service_context.h"
 using steady_timer = boost::asio::steady_timer;
 namespace ccapi {
+/**
+ * This class provides a consumer session for making requests and subscriptions for services. Sessions manage access to services either by requests and
+ * responses or subscriptions. A Session can dispatch events and replies in either an immediate or batching mode. The mode of a Session is determined when it is
+ * constructed and cannot be changed subsequently. A Session is immediate if an EventHandler object is supplied when it is constructed. All incoming events are
+ * delivered to the EventHandler supplied on construction. A Session is batching if an EventHandler object is not supplied when it is constructed.
+ */
 class Session {
  public:
   Session(const Session&) = delete;
@@ -209,10 +218,13 @@ class Session {
       : sessionOptions(sessionOptions),
         sessionConfigs(sessionConfigs),
         eventHandler(eventHandler),
+#ifndef CCAPI_USE_SINGLE_THREAD
         eventDispatcher(eventDispatcher),
+#endif
         eventQueue(sessionOptions.maxEventQueueSize),
         serviceContextPtr(new ServiceContext()) {
     CCAPI_LOGGER_FUNCTION_ENTER;
+#ifndef CCAPI_USE_SINGLE_THREAD
     if (this->eventHandler) {
       if (!this->eventDispatcher) {
         this->eventDispatcher = new EventDispatcher();
@@ -223,12 +235,17 @@ class Session {
         throw std::runtime_error("undefined behavior");
       }
     }
+#endif
     this->start();
     CCAPI_LOGGER_FUNCTION_EXIT;
   }
   virtual ~Session() {
     CCAPI_LOGGER_FUNCTION_ENTER;
-    delete this->eventDispatcher;
+#ifndef CCAPI_USE_SINGLE_THREAD
+    if (this->useInternalEventDispatcher) {
+      delete this->eventDispatcher;
+    }
+#endif
     CCAPI_LOGGER_FUNCTION_EXIT;
   }
   virtual void start() {
@@ -293,9 +310,9 @@ class Session {
     this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_HUOBI_COIN_SWAP] =
         std::make_shared<MarketDataServiceHuobiCoinSwap>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_OKEX
-    this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_OKEX] =
-        std::make_shared<MarketDataServiceOkex>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
+#ifdef CCAPI_ENABLE_EXCHANGE_OKX
+    this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_OKX] =
+        std::make_shared<MarketDataServiceOkx>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
 #ifdef CCAPI_ENABLE_EXCHANGE_ERISX
     this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_ERISX] =
@@ -359,6 +376,10 @@ class Session {
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_KRAKEN_FUTURES] =
         std::make_shared<ExecutionManagementServiceKrakenFutures>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
+#ifdef CCAPI_ENABLE_EXCHANGE_BITSTAMP
+    this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_BITSTAMP] =
+        std::make_shared<ExecutionManagementServiceBitstamp>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
+#endif
 #ifdef CCAPI_ENABLE_EXCHANGE_BITFINEX
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_BITFINEX] =
         std::make_shared<ExecutionManagementServiceBitfinex>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
@@ -396,9 +417,9 @@ class Session {
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_HUOBI_COIN_SWAP] =
         std::make_shared<ExecutionManagementServiceHuobiCoinSwap>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_OKEX
-    this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_OKEX] =
-        std::make_shared<ExecutionManagementServiceOkex>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
+#ifdef CCAPI_ENABLE_EXCHANGE_OKX
+    this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_OKX] =
+        std::make_shared<ExecutionManagementServiceOkx>(this->internalEventHandler, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
 #ifdef CCAPI_ENABLE_EXCHANGE_ERISX
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_ERISX] =
@@ -477,9 +498,11 @@ class Session {
     CCAPI_LOGGER_FUNCTION_EXIT;
   }
   virtual void stop() {
+#ifndef CCAPI_USE_SINGLE_THREAD
     if (this->useInternalEventDispatcher) {
       this->eventDispatcher->stop();
     }
+#endif
     for (const auto& x : this->serviceByServiceNameExchangeMap) {
       for (const auto& y : x.second) {
         y.second->stop();
@@ -605,6 +628,14 @@ class Session {
     } else {
       if (this->eventHandler) {
         CCAPI_LOGGER_TRACE("handle event in immediate mode");
+#ifdef CCAPI_USE_SINGLE_THREAD
+        bool shouldContinue = true;
+        try {
+          this->eventHandler->processEvent(event, this);
+        } catch (const std::runtime_error& e) {
+          CCAPI_LOGGER_ERROR(e.what());
+        }
+#else
         this->eventDispatcher->dispatch([that = this, event = std::move(event)] {
           bool shouldContinue = true;
           try {
@@ -617,6 +648,7 @@ class Session {
             that->eventDispatcher->pause();
           }
         });
+#endif
       } else {
         CCAPI_LOGGER_TRACE("handle event in batching mode");
         this->eventQueue.pushBack(std::move(event));
@@ -743,6 +775,13 @@ class Session {
       std::shared_ptr<steady_timer> timerPtr(new steady_timer(*this->serviceContextPtr->ioContextPtr, boost::asio::chrono::milliseconds(delayMilliSeconds)));
       timerPtr->async_wait([this, id, errorHandler, successHandler](const boost::system::error_code& ec) {
         if (this->eventHandler) {
+#ifdef CCAPI_USE_SINGLE_THREAD
+          if (ec) {
+            errorHandler(ec);
+          } else {
+            successHandler();
+          }
+#else
           this->eventDispatcher->dispatch([ec, errorHandler, successHandler] {
             if (ec) {
               errorHandler(ec);
@@ -750,6 +789,7 @@ class Session {
               successHandler();
             }
           });
+#endif
         }
         this->delayTimerByIdMap.erase(id);
       });
@@ -772,8 +812,10 @@ class Session {
   SessionOptions sessionOptions;
   SessionConfigs sessionConfigs;
   EventHandler* eventHandler;
+#ifndef CCAPI_USE_SINGLE_THREAD
   EventDispatcher* eventDispatcher;
   bool useInternalEventDispatcher{};
+#endif
   wspp::lib::shared_ptr<ServiceContext> serviceContextPtr;
   std::map<std::string, std::map<std::string, wspp::lib::shared_ptr<Service> > > serviceByServiceNameExchangeMap;
   std::thread t;

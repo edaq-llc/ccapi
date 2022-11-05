@@ -314,8 +314,10 @@ class ExecutionManagementServiceDeribit : public ExecutionManagementService {
     sendStringList.push_back(sendString);
     return sendStringList;
   }
-  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                      const TimePoint& timeReceived) override {
+    rj::Document document;
+    document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
     Event event = this->createEvent(wsConnection, subscription, textMessage, document, timeReceived);
     if (!event.getMessageList().empty()) {
       this->eventHandler(event, nullptr);
@@ -328,8 +330,8 @@ class ExecutionManagementServiceDeribit : public ExecutionManagementService {
     Message message;
     message.setTimeReceived(timeReceived);
     message.setCorrelationIdList({subscription.getCorrelationId()});
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     auto it = document.FindMember("id");
     if (document.FindMember("error") != document.MemberEnd()) {
       const rj::Value& error = document["error"];

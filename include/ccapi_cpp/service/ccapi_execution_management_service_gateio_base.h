@@ -14,6 +14,12 @@ class ExecutionManagementServiceGateioBase : public ExecutionManagementService {
 
  protected:
 #endif
+  void pingOnApplicationLevel(wspp::connection_hdl hdl, ErrorCode& ec) override {
+    auto now = UtilTime::now();
+    this->send(hdl,
+               "{\"time\":" + std::to_string(UtilTime::getUnixTimestamp(now)) + ",\"channel\":\"" + (this->isDerivatives ? "futures" : "spot") + ".ping\"}",
+               wspp::frame::opcode::text, ec);
+  }
   void signReqeustForRestGenericPrivateRequest(http::request<http::string_body>& req, const Request& request, std::string& methodString,
                                                std::string& headerString, std::string& path, std::string& queryString, std::string& body, const TimePoint& now,
                                                const std::map<std::string, std::string>& credential) override {
@@ -257,6 +263,8 @@ class ExecutionManagementServiceGateioBase : public ExecutionManagementService {
           Element element;
           element.insert(CCAPI_EM_ASSET, x["currency"].GetString());
           element.insert(CCAPI_EM_QUANTITY_AVAILABLE_FOR_TRADING, x["available"].GetString());
+          float total = std::stof(x["locked"].GetString()) + std::stof(x["available"].GetString());
+          element.insert(CCAPI_EM_QUANTITY_TOTAL, std::to_string(total));
           elementList.emplace_back(std::move(element));
         }
       } break;
@@ -295,8 +303,8 @@ class ExecutionManagementServiceGateioBase : public ExecutionManagementService {
     auto apiKey = mapGetWithDefault(credential, this->apiKeyName);
     auto apiSecret = mapGetWithDefault(credential, this->apiSecretName);
     int time = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     for (const auto& field : fieldSet) {
       rj::Document document;
       document.SetObject();
@@ -334,8 +342,10 @@ class ExecutionManagementServiceGateioBase : public ExecutionManagementService {
     }
     return sendStringList;
   }
-  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                      const TimePoint& timeReceived) override {
+    rj::Document document;
+    document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
     Event event = this->createEvent(subscription, textMessage, document, timeReceived);
     if (!event.getMessageList().empty()) {
       this->eventHandler(event, nullptr);
@@ -350,8 +360,8 @@ class ExecutionManagementServiceGateioBase : public ExecutionManagementService {
     std::string eventType = document["event"].GetString();
     if (eventType == "update") {
       event.setType(Event::Type::SUBSCRIPTION_DATA);
-      auto fieldSet = subscription.getFieldSet();
-      auto instrumentSet = subscription.getInstrumentSet();
+      const auto& fieldSet = subscription.getFieldSet();
+      const auto& instrumentSet = subscription.getInstrumentSet();
       std::string channel = document["channel"].GetString();
       std::string field;
       if (channel == this->websocketChannelUserTrades) {

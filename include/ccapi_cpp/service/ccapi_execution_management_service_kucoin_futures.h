@@ -1,15 +1,18 @@
-#ifndef INCLUDE_CCAPI_CPP_SERVICE_CCAPI_EXECUTION_MANAGEMENT_SERVICE_KUCOIN_H_
-#define INCLUDE_CCAPI_CPP_SERVICE_CCAPI_EXECUTION_MANAGEMENT_SERVICE_KUCOIN_H_
+#ifndef INCLUDE_CCAPI_CPP_SERVICE_CCAPI_EXECUTION_MANAGEMENT_SERVICE_KUCOIN_FUTURES_H_
+#define INCLUDE_CCAPI_CPP_SERVICE_CCAPI_EXECUTION_MANAGEMENT_SERVICE_KUCOIN_FUTURES_H_
 #ifdef CCAPI_ENABLE_SERVICE_EXECUTION_MANAGEMENT
-#ifdef CCAPI_ENABLE_EXCHANGE_KUCOIN
+#ifdef CCAPI_ENABLE_EXCHANGE_KUCOIN_FUTURES
+
 #include "ccapi_cpp/service/ccapi_execution_management_service.h"
+#include "openssl/evp.h"
+
 namespace ccapi {
-class ExecutionManagementServiceKucoin : public ExecutionManagementService {
+class ExecutionManagementServiceKucoinFutures : public ExecutionManagementService {
  public:
-  ExecutionManagementServiceKucoin(std::function<void(Event&, Queue<Event>*)> eventHandler, SessionOptions sessionOptions, SessionConfigs sessionConfigs,
-                                   ServiceContextPtr serviceContextPtr)
+  ExecutionManagementServiceKucoinFutures(std::function<void(Event&, Queue<Event>*)> eventHandler, SessionOptions sessionOptions, SessionConfigs sessionConfigs,
+                                          ServiceContextPtr serviceContextPtr)
       : ExecutionManagementService(eventHandler, sessionOptions, sessionConfigs, serviceContextPtr) {
-    this->exchangeName = CCAPI_EXCHANGE_NAME_KUCOIN;
+    this->exchangeName = CCAPI_EXCHANGE_NAME_KUCOIN_FUTURES;
     this->baseUrl = sessionConfigs.getUrlWebsocketBase().at(this->exchangeName);
     this->baseUrlRest = sessionConfigs.getUrlRestBase().at(this->exchangeName);
     this->setHostRestFromUrlRest(this->baseUrlRest);
@@ -18,31 +21,33 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
     } catch (const std::exception& e) {
       CCAPI_LOGGER_FATAL(std::string("e.what() = ") + e.what());
     }
-    this->apiKeyName = CCAPI_KUCOIN_API_KEY;
-    this->apiSecretName = CCAPI_KUCOIN_API_SECRET;
-    this->apiPassphraseName = CCAPI_KUCOIN_API_PASSPHRASE;
-    this->apiKeyVersionName = CCAPI_KUCOIN_API_KEY_VERSION;
-    this->setupCredential({this->apiKeyName, this->apiSecretName, this->apiPassphraseName, this->apiKeyVersionName});
-    this->createOrderTarget = "/api/v1/orders";
-    this->cancelOrderTarget = "/api/v1/orders/<id>";
-    this->getOrderTarget = "/api/v1/orders/<id>";
-    this->getOpenOrdersTarget = "/api/v1/orders";
-    this->cancelOpenOrdersTarget = "/api/v1/orders";
-    this->getAccountsTarget = "/api/v1/accounts";
-    this->getAccountBalancesTarget = "/api/v1/accounts/<accountId>";
+    this->apiKeyName = CCAPI_KUCOIN_FUTURES_API_KEY;
+    this->apiSecretName = CCAPI_KUCOIN_FUTURES_API_SECRET;
+    this->setupCredential({this->apiKeyName, this->apiSecretName});
+    std::string prefix("/api/v1");
+    this->createOrderTarget = prefix + "/orders";
+    this->cancelOrderTarget = prefix + "/orders/client-order/<id>";
+    this->getOpenOrdersTarget = prefix + "/orders";
+    this->cancelOpenOrdersTarget = prefix + "/orders";
+    this->getAccountsTarget = prefix + "/account-overview";
+    this->getAccountPositionsTarget = prefix + "/positions";
   }
-  virtual ~ExecutionManagementServiceKucoin() {}
+  virtual ~ExecutionManagementServiceKrakenFutures() {}
+
 #ifndef CCAPI_EXPOSE_INTERNAL
 
  protected:
 #endif
+
   void onOpen(wspp::connection_hdl hdl) override {
     WsConnection& wsConnection = this->getWsConnectionFromConnectionPtr(this->serviceContextPtr->tlsClientPtr->get_con_from_hdl(hdl));
     wsConnection.status = WsConnection::Status::OPEN;
   }
+
   bool doesHttpBodyContainError(const Request& request, const std::string& body) override {
     return !std::regex_search(body, std::regex("\"code\":\\s*\"200000\""));
   }
+
   void prepareConnect(WsConnection& wsConnection) override {
     auto now = UtilTime::now();
     http::request<http::string_body> req;
@@ -90,10 +95,12 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
         },
         this->sessionOptions.httpRequestTimeoutMilliSeconds);
   }
+
   void pingOnApplicationLevel(wspp::connection_hdl hdl, ErrorCode& ec) override {
     auto now = UtilTime::now();
     this->send(hdl, "{\"id\":\"" + std::to_string(UtilTime::getUnixTimestamp(now)) + "\",\"type\":\"ping\"}", wspp::frame::opcode::text, ec);
   }
+
   void signReqeustForRestGenericPrivateRequest(http::request<http::string_body>& req, const Request& request, std::string& methodString,
                                                std::string& headerString, std::string& path, std::string& queryString, std::string& body, const TimePoint& now,
                                                const std::map<std::string, std::string>& credential) override {
@@ -112,6 +119,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
     }
     headerString += "KC-API-SIGN:" + signature;
   }
+
   void signRequest(http::request<http::string_body>& req, const std::string& body, const std::map<std::string, std::string>& credential) {
     auto apiSecret = mapGetWithDefault(credential, this->apiSecretName);
     auto preSignedText = req.base().at("KC-API-TIMESTAMP").to_string();
@@ -131,6 +139,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
       req.set("KC-API-PASSPHRASE", apiPassphrase);
     }
   }
+
   void appendParam(rj::Document& document, rj::Document::AllocatorType& allocator, const std::map<std::string, std::string>& param,
                    const std::map<std::string, std::string> standardizationMap = {
                        {CCAPI_EM_ORDER_SIDE, "side"},
@@ -153,6 +162,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
       }
     }
   }
+
   void appendParam(std::string& queryString, const std::map<std::string, std::string>& param,
                    const std::map<std::string, std::string> standardizationMap = {}) {
     for (const auto& kv : param) {
@@ -162,9 +172,11 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
       queryString += "&";
     }
   }
+
   void appendSymbolId(rj::Document& document, rj::Document::AllocatorType& allocator, const std::string& symbolId) {
     document.AddMember("symbol", rj::Value(symbolId.c_str(), allocator).Move(), allocator);
   }
+
   void prepareReq(http::request<http::string_body>& req, const TimePoint& now, const std::map<std::string, std::string>& credential) {
     req.set(beast::http::field::content_type, "application/json");
     auto apiKey = mapGetWithDefault(credential, this->apiKeyName);
@@ -176,6 +188,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
     auto apiSecret = mapGetWithDefault(credential, this->apiSecretName);
     this->signApiPassphrase(req, apiKeyVersion, apiPassphrase, apiSecret);
   }
+
   void convertRequestForRest(http::request<http::string_body>& req, const Request& request, const TimePoint& now, const std::string& symbolId,
                              const std::map<std::string, std::string>& credential) override {
     this->prepareReq(req, now, credential);
@@ -205,8 +218,8 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
         std::string id = useOrderId                                            ? param.at(CCAPI_EM_ORDER_ID)
                          : param.find(CCAPI_EM_CLIENT_ORDER_ID) != param.end() ? "client-order/" + param.at(CCAPI_EM_CLIENT_ORDER_ID)
                                                                                : "";
-        auto target =
-            useOrderId ? std::regex_replace(this->cancelOrderTarget, std::regex("<id>"), id) : std::regex_replace("/api/v1/order/<id>", std::regex("<id>"), id);
+        auto target = useOrderId ? std::regex_replace(this->cancelOrderTarget, std::regex("<id>"), id)
+                                 : std::regex_replace("/api/v1/orders/<id>", std::regex("<id>"), id);
         req.target(target);
         this->signRequest(req, "", credential);
       } break;
@@ -218,7 +231,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
                          : param.find(CCAPI_EM_CLIENT_ORDER_ID) != param.end() ? "client-order/" + param.at(CCAPI_EM_CLIENT_ORDER_ID)
                                                                                : "";
         auto target =
-            useOrderId ? std::regex_replace(this->getOrderTarget, std::regex("<id>"), id) : std::regex_replace("/api/v1/order/<id>", std::regex("<id>"), id);
+            useOrderId ? std::regex_replace(this->getOrderTarget, std::regex("<id>"), id) : std::regex_replace("/api/v1/orders/<id>", std::regex("<id>"), id);
         req.target(target);
         this->signRequest(req, "", credential);
       } break;
@@ -243,30 +256,11 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
         req.target(target);
         this->signRequest(req, "", credential);
       } break;
-      case Request::Operation::GET_ACCOUNTS: {
-        req.method(http::verb::get);
-        std::string target = this->getAccountsTarget;
-        const std::map<std::string, std::string> param = request.getFirstParamWithDefault();
-        if (!param.empty()) {
-          std::string queryString;
-          this->appendParam(queryString, param,
-                            {
-                                {CCAPI_EM_ASSET, "currency"},
-                                {CCAPI_EM_ACCOUNT_TYPE, "type"},
-                            });
-          target += "?" + queryString;
-        }
-        req.target(target);
-        this->signRequest(req, "", credential);
-      } break;
       case Request::Operation::GET_ACCOUNT_BALANCES: {
         req.method(http::verb::get);
         const std::map<std::string, std::string> param = request.getFirstParamWithDefault();
-        auto target = this->getAccountBalancesTarget;
+        auto target = this->getAccountsTarget;
         auto accountId = param.find(CCAPI_EM_ACCOUNT_ID) != param.end() ? param.at(CCAPI_EM_ACCOUNT_ID) : "";
-        this->substituteParam(target, {
-                                          {"<accountId>", accountId},
-                                      });
         req.target(target);
         this->signRequest(req, "", credential);
       } break;
@@ -274,6 +268,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
         this->convertRequestForRestCustom(req, request, now, symbolId, credential);
     }
   }
+
   void extractOrderInfoFromRequest(std::vector<Element>& elementList, const Request& request, const Request::Operation operation,
                                    const rj::Document& document) override {
     const std::map<std::string, std::pair<std::string, JsonDataType> >& extractionFieldNameMap = {
@@ -323,6 +318,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
       }
     }
   }
+
   void extractAccountInfoFromRequest(std::vector<Element>& elementList, const Request& request, const Request::Operation operation,
                                      const rj::Document& document) override {
     const auto& data = document["data"];
@@ -330,31 +326,30 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
       case Request::Operation::GET_ACCOUNTS: {
         for (const auto& x : data.GetArray()) {
           Element element;
-          element.insert(CCAPI_EM_ACCOUNT_ID, x["id"].GetString());
-          element.insert(CCAPI_EM_ACCOUNT_TYPE, x["type"].GetString());
           element.insert(CCAPI_EM_ASSET, x["currency"].GetString());
-          element.insert(CCAPI_EM_QUANTITY_TOTAL, x["balance"].GetString());
-          element.insert(CCAPI_EM_QUANTITY_AVAILABLE_FOR_TRADING, x["available"].GetString());
+          element.insert(CCAPI_EM_QUANTITY_TOTAL, x["marginBalance"].GetString());
+          element.insert(CCAPI_EM_QUANTITY_AVAILABLE_FOR_TRADING, x["availableBalance"].GetString());
           elementList.emplace_back(std::move(element));
         }
       } break;
       case Request::Operation::GET_ACCOUNT_BALANCES: {
         Element element;
         element.insert(CCAPI_EM_ASSET, data["currency"].GetString());
-        element.insert(CCAPI_EM_QUANTITY_TOTAL, data["balance"].GetString());
-        element.insert(CCAPI_EM_QUANTITY_AVAILABLE_FOR_TRADING, data["available"].GetString());
+        element.insert(CCAPI_EM_QUANTITY_TOTAL, data["marginBalance"].GetString());
+        element.insert(CCAPI_EM_QUANTITY_AVAILABLE_FOR_TRADING, data["availableBalance"].GetString());
         elementList.emplace_back(std::move(element));
       } break;
       default:
         CCAPI_LOGGER_FATAL(CCAPI_UNSUPPORTED_VALUE);
     }
   }
+
   std::vector<std::string> createSendStringListFromSubscription(const WsConnection& wsConnection, const Subscription& subscription, const TimePoint& now,
                                                                 const std::map<std::string, std::string>& credential) override {
     std::string topic;
     const auto& fieldSet = subscription.getFieldSet();
     if (fieldSet.find(CCAPI_EM_ORDER_UPDATE) != fieldSet.end() || fieldSet.find(CCAPI_EM_PRIVATE_TRADE) != fieldSet.end()) {
-      topic = "/spotMarket/tradeOrders";
+      topic = "/contractMarket/tradeOrders";
     }
     std::vector<std::string> sendStringList;
     rj::Document document;
@@ -375,6 +370,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
     sendStringList.push_back(sendString);
     return sendStringList;
   }
+
   void onTextMessage(wspp::connection_hdl hdl, const std::string& textMessage, const TimePoint& timeReceived) override {
     WsConnection& wsConnection = this->getWsConnectionFromConnectionPtr(this->serviceContextPtr->tlsClientPtr->get_con_from_hdl(hdl));
     auto subscription = wsConnection.subscriptionList.at(0);
@@ -398,7 +394,7 @@ class ExecutionManagementServiceKucoin : public ExecutionManagementService {
       const auto& fieldSet = subscription.getFieldSet();
       const auto& instrumentSet = subscription.getInstrumentSet();
       std::string topic = document["topic"].GetString();
-      if (topic == "/spotMarket/tradeOrders") {
+      if (topic == "/contractMarket/tradeOrders") {
         const rj::Value& data = document["data"];
         std::string instrument = data["symbol"].GetString();
         if (instrumentSet.empty() || instrumentSet.find(instrument) != instrumentSet.end()) {

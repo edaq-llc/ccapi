@@ -21,6 +21,13 @@ class ExecutionManagementServiceBinanceBase : public ExecutionManagementService 
   void signReqeustForRestGenericPrivateRequest(http::request<http::string_body>& req, const Request& request, std::string& methodString,
                                                std::string& headerString, std::string& path, std::string& queryString, std::string& body, const TimePoint& now,
                                                const std::map<std::string, std::string>& credential) override {
+    if (queryString.find("timestamp=") == std::string::npos) {
+      if (!queryString.empty()) {
+        queryString += "&";
+      }
+      queryString += "timestamp=";
+      queryString += std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count());
+    }
     auto apiSecret = mapGetWithDefault(credential, this->apiSecretName);
     auto signature = Hmac::hmac(Hmac::ShaVersion::SHA256, apiSecret, queryString, true);
     queryString += "&signature=";
@@ -253,8 +260,13 @@ class ExecutionManagementServiceBinanceBase : public ExecutionManagementService 
     message.setType(Message::Type::SUBSCRIPTION_STARTED);
     event.setMessageList({message});
     this->eventHandler(event, nullptr);
+    setPingListenKeyTimer(wsConnection);
+  }
+  void setPingListenKeyTimer(const WsConnection& wsConnection) {
     this->pingListenKeyTimerMapByConnectionIdMap[wsConnection.id] = this->serviceContextPtr->tlsClientPtr->set_timer(
         this->pingListenKeyIntervalSeconds * 1000, [wsConnection, that = shared_from_base<ExecutionManagementServiceBinanceBase>()](ErrorCode const& ec) {
+          if (ec) return;
+          that->setPingListenKeyTimer(wsConnection);
           http::request<http::string_body> req;
           req.set(http::field::host, that->hostRest);
           req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
@@ -301,8 +313,10 @@ class ExecutionManagementServiceBinanceBase : public ExecutionManagementService 
     }
     ExecutionManagementService::onClose(hdl);
   }
-  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                      const TimePoint& timeReceived) override {
+    rj::Document document;
+    document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
     Event event = this->createEvent(subscription, textMessage, document, timeReceived);
     if (!event.getMessageList().empty()) {
       this->eventHandler(event, nullptr);
@@ -311,8 +325,8 @@ class ExecutionManagementServiceBinanceBase : public ExecutionManagementService 
   Event createEvent(const Subscription& subscription, const std::string& textMessage, const rj::Document& document, const TimePoint& timeReceived) {
     Event event;
     std::vector<Message> messageList;
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     std::string type = document["e"].GetString();
     if (type == (this->isDerivatives ? "ORDER_TRADE_UPDATE" : "executionReport")) {
       event.setType(Event::Type::SUBSCRIPTION_DATA);
@@ -335,6 +349,7 @@ class ExecutionManagementServiceBinanceBase : public ExecutionManagementService 
           element.insert(CCAPI_EM_ORDER_SIDE, std::string(data["S"].GetString()) == "BUY" ? CCAPI_EM_ORDER_SIDE_BUY : CCAPI_EM_ORDER_SIDE_SELL);
           element.insert(CCAPI_IS_MAKER, data["m"].GetBool() ? "1" : "0");
           element.insert(CCAPI_EM_ORDER_ID, std::string(data["i"].GetString()));
+          element.insert(CCAPI_EM_CLIENT_ORDER_ID, std::string(data["c"].GetString()));
           element.insert(CCAPI_EM_ORDER_INSTRUMENT, instrument);
           {
             auto it = data.FindMember("n");
@@ -371,10 +386,18 @@ class ExecutionManagementServiceBinanceBase : public ExecutionManagementService 
           };
           Element info;
           this->extractOrderInfo(info, data, extractionFieldNameMap);
-          auto it = data.FindMember("ap");
-          if (it != data.MemberEnd() && !it->value.IsNull()) {
-            info.insert(CCAPI_EM_ORDER_CUMULATIVE_FILLED_PRICE_TIMES_QUANTITY,
-                        std::to_string(std::stod(it->value.GetString()) * std::stod(data["z"].GetString())));
+          {
+            auto it = data.FindMember("C");
+            if (it != data.MemberEnd() && !it->value.IsNull() && it->value.GetStringLength()) {
+              info.insert(CCAPI_EM_ORIGINAL_CLIENT_ORDER_ID, std::string(it->value.GetString()));
+            }
+          }
+          {
+            auto it = data.FindMember("ap");
+            if (it != data.MemberEnd() && !it->value.IsNull()) {
+              info.insert(CCAPI_EM_ORDER_CUMULATIVE_FILLED_PRICE_TIMES_QUANTITY,
+                          std::to_string(std::stod(it->value.GetString()) * std::stod(data["z"].GetString())));
+            }
           }
           std::vector<Element> elementList;
           elementList.emplace_back(std::move(info));

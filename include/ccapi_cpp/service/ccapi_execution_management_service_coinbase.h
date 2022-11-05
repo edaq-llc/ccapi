@@ -249,13 +249,13 @@ class ExecutionManagementServiceCoinbase : public ExecutionManagementService {
     document.AddMember("type", rj::Value("subscribe").Move(), allocator);
     rj::Value channels(rj::kArrayType);
     std::string channelId;
-    auto fieldSet = subscription.getFieldSet();
+    const auto& fieldSet = subscription.getFieldSet();
     if (fieldSet.find(CCAPI_EM_ORDER_UPDATE) != fieldSet.end() || fieldSet.find(CCAPI_EM_PRIVATE_TRADE) != fieldSet.end()) {
       channelId = "full";
     }
     rj::Value channel(rj::kObjectType);
     rj::Value symbolIds(rj::kArrayType);
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     for (const auto& instrument : instrumentSet) {
       const std::string& symbolId = instrument;
       symbolIds.PushBack(rj::Value(symbolId.c_str(), allocator).Move(), allocator);
@@ -284,8 +284,10 @@ class ExecutionManagementServiceCoinbase : public ExecutionManagementService {
     sendStringList.push_back(sendString);
     return sendStringList;
   }
-  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                      const TimePoint& timeReceived) override {
+    rj::Document document;
+    document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
     Event event = this->createEvent(subscription, textMessage, document, timeReceived);
     if (!event.getMessageList().empty()) {
       this->eventHandler(event, nullptr);
@@ -300,8 +302,8 @@ class ExecutionManagementServiceCoinbase : public ExecutionManagementService {
     std::string type = document["type"].GetString();
     if (this->websocketFullChannelTypeSet.find(type) != websocketFullChannelTypeSet.end()) {
       event.setType(Event::Type::SUBSCRIPTION_DATA);
-      auto fieldSet = subscription.getFieldSet();
-      auto instrumentSet = subscription.getInstrumentSet();
+      const auto& fieldSet = subscription.getFieldSet();
+      const auto& instrumentSet = subscription.getInstrumentSet();
       if (document.FindMember("user_id") != document.MemberEnd()) {
         std::string instrument = document["product_id"].GetString();
         if (instrumentSet.empty() || instrumentSet.find(instrument) != instrumentSet.end()) {

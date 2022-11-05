@@ -26,8 +26,38 @@
 #include "ccapi_cpp/ccapi_util.h"
 #include "openssl/evp.h"
 namespace ccapi {
+/**
+ * Utilities.
+ */
 class UtilString CCAPI_FINAL {
  public:
+  static std::string roundInputBySignificantFigure(double input, int numSignificantFigure, int roundDirection) {
+    const auto& splitted = UtilString::split(UtilString::printDoubleScientific(input), 'e');
+    double a = std::stod(splitted.at(0)) * std::pow(10, numSignificantFigure - 1);
+    double b;
+    if (roundDirection > 0) {
+      b = std::ceil(a);
+    } else if (roundDirection < 0) {
+      b = std::floor(a);
+    } else {
+      b = std::round(a);
+    }
+    std::string c = std::to_string(static_cast<int>(b));
+    int exponent = std::stoi(splitted.at(1)) - (numSignificantFigure - 1);
+    std::string output;
+    if (exponent >= 0) {
+      output = c + std::string(exponent, '0');
+    } else if (-exponent <= c.size() - 1) {
+      output = c.substr(0, c.size() + exponent);
+      output += ".";
+      output += c.substr(c.size() + exponent);
+    } else {
+      output = std::string(-exponent - c.size() + 1, '0');
+      output += ".";
+      output += c;
+    }
+    return output;
+  }
   static std::string replaceFirstOccurrence(std::string& s, const std::string& toReplace, const std::string& replaceWith) {
     std::size_t pos = s.find(toReplace);
     if (pos == std::string::npos) {
@@ -62,6 +92,36 @@ class UtilString CCAPI_FINAL {
     std::string str(length, 0);
     std::generate_n(str.begin(), length, randchar);
     return str;
+  }
+  static std::string generateUuidV4() {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_int_distribution<> dis(0, 15);
+    static std::uniform_int_distribution<> dis2(8, 11);
+    std::stringstream ss;
+    int i;
+    ss << std::hex;
+    for (i = 0; i < 8; i++) {
+      ss << dis(gen);
+    }
+    ss << "-";
+    for (i = 0; i < 4; i++) {
+      ss << dis(gen);
+    }
+    ss << "-4";
+    for (i = 0; i < 3; i++) {
+      ss << dis(gen);
+    }
+    ss << "-";
+    ss << dis2(gen);
+    for (i = 0; i < 3; i++) {
+      ss << dis(gen);
+    }
+    ss << "-";
+    for (i = 0; i < 12; i++) {
+      ss << dis(gen);
+    };
+    return ss.str();
   }
   static std::vector<std::string> split(const std::string& in, char sep) {
     std::vector<std::string> r;

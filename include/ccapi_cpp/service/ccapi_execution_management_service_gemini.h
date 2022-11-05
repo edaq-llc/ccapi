@@ -267,8 +267,8 @@ class ExecutionManagementServiceGemini : public ExecutionManagementService {
   void prepareConnect(WsConnection& wsConnection) override {
     auto now = UtilTime::now();
     auto subscription = wsConnection.subscriptionList.at(0);
-    auto fieldSet = subscription.getFieldSet();
-    auto instrumentSet = subscription.getInstrumentSet();
+    const auto& fieldSet = subscription.getFieldSet();
+    const auto& instrumentSet = subscription.getInstrumentSet();
     auto credential = wsConnection.subscriptionList.at(0).getCredential();
     if (credential.empty()) {
       credential = this->credentialDefault;
@@ -294,8 +294,10 @@ class ExecutionManagementServiceGemini : public ExecutionManagementService {
     wsConnection.headers.insert({"X-GEMINI-SIGNATURE", signature});
     this->connect(wsConnection);
   }
-  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage, const rj::Document& document,
+  void onTextMessage(const WsConnection& wsConnection, const Subscription& subscription, const std::string& textMessage,
                      const TimePoint& timeReceived) override {
+    rj::Document document;
+    document.Parse<rj::kParseNumbersAsStringsFlag>(textMessage.c_str());
     Event event = this->createEvent(subscription, textMessage, document, timeReceived);
     if (!event.getMessageList().empty()) {
       this->eventHandler(event, nullptr);
@@ -319,8 +321,8 @@ class ExecutionManagementServiceGemini : public ExecutionManagementService {
       }
     } else if (document.IsArray()) {
       event.setType(Event::Type::SUBSCRIPTION_DATA);
-      auto fieldSet = subscription.getFieldSet();
-      auto instrumentSet = subscription.getInstrumentSet();
+      const auto& fieldSet = subscription.getFieldSet();
+      const auto& instrumentSet = subscription.getInstrumentSet();
       for (const auto& x : document.GetArray()) {
         Message message;
         message.setTimeReceived(timeReceived);
