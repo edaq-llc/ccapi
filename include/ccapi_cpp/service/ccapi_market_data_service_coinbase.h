@@ -214,6 +214,7 @@ class MarketDataServiceCoinbase : public MarketDataService {
     element.insert(CCAPI_QUOTE_ASSET, x["quote_currency"].GetString());
     element.insert(CCAPI_ORDER_PRICE_INCREMENT, x["quote_increment"].GetString());
     element.insert(CCAPI_ORDER_QUANTITY_INCREMENT, x["base_increment"].GetString());
+    element.insert(CCAPI_INSTRUMENT_DISPLAY_NAME, x["display_name"].GetString());
   }
   void convertTextMessageToMarketDataMessage(const Request& request, const std::string& textMessage, const TimePoint& timeReceived, Event& event,
                                              std::vector<MarketDataMessage>& marketDataMessageList) override {

@@ -92,9 +92,9 @@ class MarketDataServiceGemini : public MarketDataService {
       MarketDataMessage marketDataMessage;
       marketDataMessage.exchangeSubscriptionId = wsConnection.url;
       TimePoint time = timeReceived;
-      auto it = document.FindMember("timestampms");
-      if (it != document.MemberEnd()) {
-        time = TimePoint(std::chrono::milliseconds(std::stoll(it->value.GetString())));
+      // auto it = document.FindMember("timestampms");
+      if (document.HasMember("timestampms")) {
+        time = TimePoint(std::chrono::milliseconds(std::stoll(document["timestampms"].GetString())));
       }
       for (auto& event : document["events"].GetArray()) {
         auto gType = std::string(event["type"].GetString());

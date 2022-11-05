@@ -339,7 +339,8 @@ class MarketDataServiceKraken : public MarketDataService {
         for (auto itr = document["result"].MemberBegin(); itr != document["result"].MemberEnd(); ++itr) {
           Element element;
           this->extractInstrumentInfo(element, itr->value);
-          element.insert(CCAPI_INSTRUMENT, itr->name.GetString());
+          // element.insert(CCAPI_INSTRUMENT, itr->name.GetString());
+          element.insert(CCAPI_INSTRUMENT, itr->value["wsname"].GetString());
           elementList.push_back(element);
         }
         message.setElementList(elementList);

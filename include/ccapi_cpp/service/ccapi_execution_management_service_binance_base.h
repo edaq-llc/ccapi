@@ -83,9 +83,10 @@ class ExecutionManagementServiceBinanceBase : public ExecutionManagementService 
                               {CCAPI_EM_ORDER_QUANTITY, "quantity"},
                               {CCAPI_EM_ORDER_LIMIT_PRICE, "price"},
                               {CCAPI_EM_CLIENT_ORDER_ID, "newClientOrderId"},
+                              {CCAPI_EM_ORDER_TYPE, "type"},
                           });
         this->appendSymbolId(queryString, symbolId);
-        if (param.find("type") == param.end()) {
+        if (param.find("TYPE") == param.end()) {
           queryString += "type=LIMIT&";
           if (param.find("timeInForce") == param.end()) {
             queryString += "timeInForce=GTC&";
@@ -258,6 +259,7 @@ class ExecutionManagementServiceBinanceBase : public ExecutionManagementService 
     Message message;
     message.setTimeReceived(now);
     message.setType(Message::Type::SUBSCRIPTION_STARTED);
+    message.setCorrelationIdList({wsConnection.subscriptionList.at(0).getCorrelationId()});
     event.setMessageList({message});
     this->eventHandler(event, nullptr);
     setPingListenKeyTimer(wsConnection);

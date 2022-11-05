@@ -173,6 +173,7 @@ class MarketDataServiceCryptocom : public MarketDataService {
           Element element;
           element.insert(CCAPI_ERROR_MESSAGE, textMessage);
           message.setElementList({element});
+          message.setCorrelationIdList({wsConnection.subscriptionList.at(0).getCorrelationId()});
           messageList.emplace_back(std::move(message));
           event.setMessageList(messageList);
         } else {

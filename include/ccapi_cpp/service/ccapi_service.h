@@ -253,6 +253,11 @@ class Service : public std::enable_shared_from_this<Service> {
     Element element;
     element.insert(CCAPI_HTTP_STATUS_CODE, statusCodeStr);
     element.insert(CCAPI_ERROR_MESSAGE, UtilString::trim(errorMessage));
+    element.insert(CCAPI_REQUEST_EXCHANGE, request.getExchange());
+    element.insert(CCAPI_INSTRUMENT, request.getInstrument());
+    for(auto& k: request.getFirstParamWithDefault()){
+      element.insert(k.first, k.second);
+    }
     message.setElementList({element});
     event.setMessageList({message});
     this->eventHandler(event, eventQueuePtr);
