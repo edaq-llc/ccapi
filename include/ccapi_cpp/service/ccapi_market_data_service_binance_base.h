@@ -270,6 +270,7 @@ class MarketDataServiceBinanceBase : public MarketDataService {
     element.insert(CCAPI_BASE_ASSET, x["baseAsset"].GetString());
     element.insert(CCAPI_QUOTE_ASSET, x["quoteAsset"].GetString());
     element.insert(CCAPI_ORDER_PRICE_PRECISION, x["quoteAssetPrecision"].GetString());
+    element.insert(CCAPI_INSTRUMENT_STATUS, x["status"].GetString())
     for (const auto& y : x["filters"].GetArray()) {
       std::string filterType = y["filterType"].GetString();
       if (filterType == "PRICE_FILTER") {
